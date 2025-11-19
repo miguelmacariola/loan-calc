@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loan Calculator</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Configure Tailwind for Inter font and HIG-style rounded corners -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    borderRadius: {
+                        '3xl': '1.5rem', // Larger radius for the 'soft' look
+                    },
+                    colors: {
+                        'primary-indigo': '#4f46e5', // Indigo 600 for main accents
+                        'success-emerald': '#059669', // Emerald 600 for positive gains
+                        'cost-rose': '#e11d48', // Rose 600 for total cost/interest
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Load Inter font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Custom styles for subtle, HIG-like elevation and input focus */
+        .hig-card {
+            background-color: white;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .hig-input {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            padding: 0.75rem 1rem;
+            border: 1px solid #e5e7eb; /* light gray border */
+            border-radius: 0.75rem;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        /* UPDATED FOCUS RING AND BORDER COLOR to use Indigo 600 */
+        .hig-input:focus {
+            outline: none;
+            border-color: #4f46e5; /* primary-indigo */
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.3); /* primary-indigo shadow */
+        }
+        /* Custom radio button styling */
+        .radio-label {
+            transition: background-color 0.2s;
+        }
+        /* UPDATED CHECKED COLOR to use Indigo 600 */
+        input[type="radio"]:checked + .radio-label {
+            background-color: #4f46e5; /* primary-indigo */
+            color: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        /* Align text right for currency inputs */
+        .input-currency {
+            text-align: right;
+        }
+    </style>
+</head>
+
+<body class="font-sans bg-gray-100 min-h-screen p-4 md:p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl md:text-4xl font-bold text-gray-800 mb-6 text-center">
+            Loan Calculator
+        </h1>
+
+        <div id="calculator-app" class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- INPUTS (2/3rds width on desktop) -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Loan Details Card -->
+                <div class="hig-card p-6 rounded-3xl">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Loan Terms</h2>
+
+                    <div class="space-y-4">
+                        <!-- 1. Loan Amount (Text input for comma formatting) -->
+                        <div>
+                            <label for="loanAmount" class="block text-sm font-medium text-gray-600 mb-1">Loan Amount (₱)</label>
+                            <!-- Changed to type="text" and added input-currency class -->
+                            <input type="text" id="loanAmount" value="500,000" min="1000" class="hig-input w-full input-currency" placeholder="e.g. 500,000" oninput="formatAndCalculate(this)">
+                        </div>
+
+                        <!-- 2. Interest Rate (with toggle for Annual/Monthly) -->
+                        <div>
+                            <label for="interestRate" class="block text-sm font-medium text-gray-600 mb-2">Interest Rate (%)</label>
+                            <div class="flex space-x-2">
+                                <input type="number" id="interestRate" value="8" min="0.01" max="100" step="0.1" class="hig-input flex-grow" placeholder="e.g. 8.0" oninput="calculateLoan()">
+
+                                <div class="inline-flex rounded-xl p-1 bg-gray-100 shadow-inner">
+                                    <input type="radio" id="rateAnnual" name="interestUnit" value="annual" class="hidden" checked onchange="calculateLoan()">
+                                    <label for="rateAnnual" class="radio-label text-sm px-4 py-2 cursor-pointer rounded-lg font-medium text-gray-600">Annual</label>
+
+                                    <input type="radio" id="rateMonthly" name="interestUnit" value="monthly" class="hidden" onchange="calculateLoan()">
+                                    <label for="rateMonthly" class="radio-label text-sm px-4 py-2 cursor-pointer rounded-lg font-medium text-gray-600">Monthly</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Duration (with toggle) -->
+                        <div>
+                            <label for="duration" class="block text-sm font-medium text-gray-600 mb-2">Duration</label>
+                            <div class="flex space-x-2">
+                                <input type="number" id="duration" value="5" min="1" class="hig-input flex-grow" placeholder="e.g. 5" oninput="calculateLoan()">
+
+                                <div class="inline-flex rounded-xl p-1 bg-gray-100 shadow-inner">
+                                    <input type="radio" id="durationMonths" name="durationUnit" value="months" class="hidden" onchange="calculateLoan()">
+                                    <label for="durationMonths" class="radio-label text-sm px-4 py-2 cursor-pointer rounded-lg font-medium text-gray-600">Months</label>
+
+                                    <input type="radio" id="durationYears" name="durationUnit" value="years" class="hidden" checked onchange="calculateLoan()">
+                                    <label for="durationYears" class="radio-label text-sm px-4 py-2 cursor-pointer rounded-lg font-medium text-gray-600">Years</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Other Charges (with toggle for Peso/Percent) -->
+                        <div>
+                            <label for="otherCharges" class="block text-sm font-medium text-gray-600 mb-1">Other Charges / Fees</label>
+                            <div class="flex space-x-2">
+                                <!-- Changed to type="text" and added input-currency class -->
+                                <input type="text" id="otherCharges" value="10,000" min="0" class="hig-input w-full input-currency" placeholder="e.g. 10,000" oninput="formatAndCalculate(this)">
+
+                                <div class="inline-flex rounded-xl p-1 bg-gray-100 shadow-inner">
+                                    <input type="radio" id="chargePeso" name="chargeUnit" value="peso" class="hidden" checked onchange="updateChargeUnitLabel(); calculateLoan();">
+                                    <label for="chargePeso" class="radio-label text-sm px-4 py-2 cursor-pointer rounded-lg font-medium text-gray-600">₱</label>
+
+                                    <input type="radio" id="chargePercent" name="chargeUnit" value="percent" class="hidden" onchange="updateChargeUnitLabel(); calculateLoan();">
+                                    <label for="chargePercent" class="radio-label text-sm px-4 py-2 cursor-pointer rounded-lg font-medium text-gray-600">%</label>
+                                </div>
+                            </div>
+                            <p class="text-xs text-gray-500 mt-1" id="chargesDescription">Includes processing fees, stamp duty, etc. (Fixed Peso Amount)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Advanced Payment Card -->
+                <div class="hig-card p-6 rounded-3xl">
+                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Advanced Payment Scenario</h2>
+                    <p class="text-sm text-gray-600 mb-4">See how much you can save and how fast you can pay off your loan by adding extra principal payment each month.</p>
+                    <div>
+                        <label for="extraPayment" class="block text-sm font-medium text-gray-600 mb-1">Extra Principal Payment (₱)</label>
+                        <!-- Changed to type="text" and added input-currency class -->
+                        <input type="text" id="extraPayment" value="0" min="0" class="hig-input w-full input-currency" placeholder="e.g. 5,000" oninput="formatAndCalculate(this)">
+                    </div>
+                </div>
+            </div>
+
+            <!-- OUTPUTS (1/3rd width on desktop) -->
+            <div class="lg:col-span-1 space-y-6">
+                <div class="hig-card p-6 rounded-3xl sticky top-8">
+                    <!-- Updated Summary Header to Indigo -->
+                    <h2 class="text-xl font-semibold text-indigo-600 mb-4 border-b pb-2">Summary of Loan</h2>
+
+                    <div class="space-y-4">
+                        <!-- Total Amount Received - Use Indigo for clarity/accent -->
+                        <div class="flex justify-between items-center border-b pb-2">
+                            <span class="text-base font-medium text-gray-700">Amount Received:</span>
+                            <span id="amountReceived" class="text-lg font-bold text-indigo-600">₱490,000.00</span>
+                        </div>
+
+                        <!-- Monthly Payment (Standard Amortization) - Use Emerald for positive tone -->
+                        <div class="flex justify-between items-center border-b pb-2">
+                            <span class="text-base font-medium text-gray-700">Standard Monthly Payment:</span>
+                            <span id="monthlyPayment" class="text-xl font-extrabold text-emerald-600">₱10,138.21</span>
+                        </div>
+
+                        <!-- Total Interest Paid -->
+                        <div class="flex justify-between items-center">
+                            <span class="text-base font-medium text-gray-700">Total Interest Paid:</span>
+                            <span id="totalInterest" class="text-lg font-semibold text-rose-600">₱108,292.65</span>
+                        </div>
+
+                        <!-- Total Payment - Use Rose for cost emphasis -->
+                        <div class="flex justify-between items-center border-t pt-2">
+                            <span class="text-base font-bold text-gray-700">Total Payments:</span>
+                            <span id="totalPayment" class="text-xl font-extrabold text-rose-600">₱608,292.65</span>
+                        </div>
+                    </div>
+
+                    <div id="advancedPaymentSummary" class="mt-6 pt-4 border-t border-dashed hidden">
+                        <!-- Updated Advanced Summary Header to Indigo -->
+                        <h3 class="text-lg font-semibold text-indigo-600 mb-3">With Extra Payment</h3>
+                        <div class="space-y-2">
+                            <!-- NEW LINE: Shows the actual remittance amount -->
+                            <div class="flex justify-between items-center border-b pb-2">
+                                <span class="text-base font-bold text-gray-700">Total Monthly Remittance:</span>
+                                <!-- Updated Remittance to Rose 700 for high emphasis on total cash outflow -->
+                                <span id="totalMonthlyRemittance" class="text-xl font-extrabold text-rose-700"></span>
+                            </div>
+                            <!-- END NEW LINE -->
+
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">New Duration:</span>
+                                <!-- Updated New Duration to Emerald for positive tone -->
+                                <span id="newDuration" class="text-base font-bold text-emerald-700"></span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-sm text-gray-600">Interest Saved:</span>
+                                <!-- Updated Interest Saved to Emerald for positive tone -->
+                                <span id="interestSaved" class="text-base font-bold text-emerald-700"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Amortization Schedule (Collapsible) -->
+        <div class="lg:col-span-3 mt-6">
+            <div class="hig-card p-6 rounded-3xl">
+                <!-- Toggle Button -->
+                <button id="toggleScheduleButton" class="w-full flex justify-between items-center text-xl font-semibold text-gray-700 py-2 focus:outline-none">
+                    <span>Full Amortization Schedule (Month-by-Month)</span>
+                    <span id="toggleIcon" class="transform transition-transform duration-300">▼</span>
+                </button>
+                
+                <!-- Collapsible Content -->
+                <div id="scheduleContent" class="overflow-x-auto mt-4 max-h-[500px] hidden border-t pt-4">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Month</th>
+                                <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Start Balance</th>
+                                <!-- UPDATED TO INDIGO -->
+                                <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-indigo-600">Req. Amortization (M)</th> 
+                                <!-- END NEW COLUMN -->
+                                <!-- UPDATED TO ROSE -->
+                                <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-rose-600">Interest Paid</th>
+                                <!-- UPDATED TO EMERALD -->
+                                <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider text-emerald-600">Total Principal Reduction</th>
+                                <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Extra Principal</th>
+                                <th class="px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">End Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody id="scheduleBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Schedule rows will be inserted here by JavaScript -->
+                        </tbody>
+                    </table>
+                    <p id="scheduleMessage" class="text-sm text-center text-gray-500 py-4 hidden">The schedule will appear here after calculation.</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Explanatory Guide -->
+        <div class="hig-card p-6 rounded-3xl mt-6">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Understanding Your Loan Details</h2>
+            <div class="space-y-4 text-gray-600 text-sm">
+                <p><strong>Loan Amount Received:</strong> This is the cash you will actually receive. It is the Loan Amount minus Other Charges/Fees (like processing or documentary stamp fees).</p>
+                <p><strong>Standard Monthly Payment (Amortization):</strong> This is the **minimum fixed amount** you are required to pay every month, covering both principal and interest.</p>
+                <p><strong>Total Monthly Remittance (with Extra Payment):</strong> If you use the Advanced Payment Scenario, this is the sum of your Standard Monthly Payment plus your Extra Principal Payment.</p>
+                <p><strong>Total Interest Paid:</strong> This shows the total cost of borrowing over the entire loan duration.</p>
+                <p><strong>Advanced Payment Effect:</strong> Any extra payment you make is applied directly to the principal, immediately reducing the basis for future interest calculations. This is the most efficient way to reduce your total interest cost and shorten the loan term dramatically.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Currency formatter for PHP (for display outputs)
+        const PHPFormatter = new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP',
+            minimumFractionDigits: 2,
+        });
+
+        // Simple currency formatter (for input field formatting)
+        const InputFormatter = new Intl.NumberFormat('en-PH', {
+            maximumFractionDigits: 0,
+        });
+        
+        // Helper to clean input strings (remove non-digits except dot) and parse as float
+        function cleanInput(value) {
+            if (typeof value !== 'string') return 0;
+            // Remove commas for parsing, but keep dots if present for decimals
+            return parseFloat(value.replace(/,/g, '')) || 0;
+        }
+
+        // Handles input formatting and triggers calculation for text inputs (with commas)
+        function formatAndCalculate(inputElement) {
+            const originalValue = inputElement.value;
+            const cursorStart = inputElement.selectionStart;
+
+            // Remove all non-digit characters except for the decimal point
+            let cleanValue = originalValue.replace(/[^\d.]/g, '');
+
+            // Format the cleaned value with commas
+            let formattedValue = '';
+            if (cleanValue.trim() !== '') {
+                // Split value into integer and decimal parts
+                const parts = cleanValue.split('.');
+                const integerPart = parts[0];
+                const decimalPart = parts.length > 1 ? '.' + parts[1] : '';
+
+                // Format the integer part with commas
+                // Using cleanInput on the integerPart ensures accurate parsing before formatting
+                formattedValue = InputFormatter.format(cleanInput(integerPart)) + decimalPart;
+            }
+            
+            // Set the formatted value back to the input field
+            inputElement.value = formattedValue;
+
+            // Try to maintain cursor position
+            const diff = formattedValue.length - originalValue.length;
+            inputElement.setSelectionRange(cursorStart + diff, cursorStart + diff);
+            
+            calculateLoan();
+        }
+
+        // Function to safely parse float from input value, accounting for commas
+        function getFloatValue(id) {
+            const element = document.getElementById(id);
+            if (element && element.type === 'text') {
+                return cleanInput(element.value);
+            }
+            return parseFloat(element.value) || 0;
+        }
+
+        // Function to update the description text for Other Charges based on the selected unit
+        function updateChargeUnitLabel() {
+            const isPercent = document.getElementById('chargePercent').checked;
+            const chargesDesc = document.getElementById('chargesDescription');
+            
+            if (isPercent) {
+                chargesDesc.textContent = "Other charges will be calculated as a percentage of the Loan Amount.";
+            } else {
+                chargesDesc.textContent = "Includes processing fees, stamp duty, etc. (Fixed Peso Amount)";
+            }
+        }
+
+        // Helper function for output updates
+        function updateOutput(id, value) {
+            document.getElementById(id).textContent = value;
+        }
+
+        // Function to render the amortization table
+        function renderAmortizationSchedule(schedule) {
+            const tbody = document.getElementById('scheduleBody');
+            const message = document.getElementById('scheduleMessage');
+            tbody.innerHTML = ''; // Clear previous data
+
+            if (schedule.length === 0) {
+                message.textContent = "Please enter valid loan details to generate the schedule.";
+                message.classList.remove('hidden');
+                return;
+            } else {
+                message.classList.add('hidden');
+            }
+
+            schedule.forEach(month => {
+                const row = tbody.insertRow();
+                row.className = 'hover:bg-gray-50 transition duration-150';
+
+                // 1. Month
+                let monthCell = row.insertCell();
+                monthCell.className = 'px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900';
+                monthCell.textContent = month.month;
+
+                // 2. Start Balance
+                let startBalanceCell = row.insertCell();
+                startBalanceCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-right text-gray-500';
+                startBalanceCell.textContent = PHPFormatter.format(month.startBalance);
+                
+                // 3. Required Amortization (M) - Use Indigo 600
+                let requiredAmortizationCell = row.insertCell();
+                requiredAmortizationCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-right font-bold text-indigo-600';
+                requiredAmortizationCell.textContent = PHPFormatter.format(month.requiredAmortization);
+
+
+                // 4. Interest Paid - Use Rose 600
+                let interestCell = row.insertCell();
+                interestCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-right text-rose-600';
+                interestCell.textContent = PHPFormatter.format(month.interestPaid);
+
+                // 5. Total Principal Reduction (renamed from principalPaid) - Use Emerald 600
+                let principalCell = row.insertCell();
+                principalCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-right text-emerald-600';
+                principalCell.textContent = PHPFormatter.format(month.principalPaid);
+                
+                // 6. Extra Principal
+                let extraPrincipalCell = row.insertCell();
+                extraPrincipalCell.className = 'px-3 py-2 whitespace-nowrap text-sm text-right text-gray-600';
+                // Only show extra principal if it was a meaningful amount
+                extraPrincipalCell.textContent = month.extraPrincipal > 0.01 ? PHPFormatter.format(month.extraPrincipal) : '—'; 
+
+                // 7. End Balance
+                let endBalanceCell = row.insertCell();
+                endBalanceCell.className = 'px-3 py-2 whitespace-nowrap text-sm font-bold text-right text-gray-900';
+                endBalanceCell.textContent = PHPFormatter.format(month.endBalance);
+            });
+        }
+
+
+        /**
+         * Calculates the loan amortization, total payment, and advanced payment effects, and generates the schedule.
+         */
+        function calculateLoan() {
+            // 1. Get Inputs
+            const P = getFloatValue('loanAmount'); 
+            const rate_input = getFloatValue('interestRate'); 
+            let N_duration = getFloatValue('duration'); 
+
+            const rawOtherCharges = getFloatValue('otherCharges'); 
+            const extraPayment = getFloatValue('extraPayment');
+
+            const isYears = document.getElementById('durationYears').checked;
+            const N = isYears ? N_duration * 12 : N_duration; // Total number of payments (months)
+            
+            const isRateMonthly = document.getElementById('rateMonthly').checked;
+            const isChargePercent = document.getElementById('chargePercent').checked;
+
+            // Guard Clause: Prevent calculation if essential inputs are invalid
+            if (P <= 0 || rate_input < 0 || N <= 0) {
+                // Clear outputs if inputs are invalid
+                updateOutput('amountReceived', PHPFormatter.format(0));
+                updateOutput('monthlyPayment', PHPFormatter.format(0));
+                updateOutput('totalInterest', PHPFormatter.format(0));
+                updateOutput('totalPayment', PHPFormatter.format(0));
+                document.getElementById('advancedPaymentSummary').classList.add('hidden');
+                renderAmortizationSchedule([]); // Clear the table
+                return;
+            }
+
+            // A. Determine Monthly Interest Rate (i)
+            let r_annual = isRateMonthly ? (rate_input * 12 / 100) : (rate_input / 100);
+            const i = r_annual / 12; // Monthly Interest Rate
+
+            // B. Calculate Other Charges
+            let otherCharges = isChargePercent ? (P * (rawOtherCharges / 100)) : rawOtherCharges;
+
+            // 2. Calculate Standard Monthly Payment (M)
+            let M = 0;
+            if (i > 0) {
+                // Standard Amortization Formula: P * [ i(1 + i)^N ] / [ (1 + i)^N - 1 ]
+                M = P * (i * Math.pow(1 + i, N)) / (Math.pow(1 + i, N) - 1);
+            } else {
+                M = P / N;
+            }
+            
+            // Standard Loan Totals
+            const totalPaymentStandard = M * N;
+            const totalInterestStandard = totalPaymentStandard - P;
+            const amountReceived = P - otherCharges;
+
+            // 3. Update Standard Outputs
+            updateOutput('amountReceived', PHPFormatter.format(amountReceived));
+            updateOutput('monthlyPayment', PHPFormatter.format(M));
+            updateOutput('totalInterest', PHPFormatter.format(totalInterestStandard));
+            updateOutput('totalPayment', PHPFormatter.format(totalPaymentStandard));
+
+            // --- 4. Amortization Schedule and Advanced Payment Calculation ---
+            const amortizationSchedule = [];
+            let currentBalance = P;
+            let totalInterestPaidNew = 0;
+            let monthCount = 0;
+            const maxMonths = N * 3;
+            const effectiveMonthlyPayment = M + extraPayment;
+            const summaryDiv = document.getElementById('advancedPaymentSummary');
+            
+            // The fixed monthly remittance (Standard + Extra)
+            const scheduleRemittance = effectiveMonthlyPayment;
+            
+            while (currentBalance > 0.01 && monthCount < maxMonths) { // Check against a small epsilon
+                monthCount++;
+                const startBalance = currentBalance;
+                const interestForMonth = startBalance * i;
+                totalInterestPaidNew += interestForMonth;
+
+                let principalPaid = 0; // This is the total principal reduction (Standard + Extra)
+                let extraPrincipalApplied = 0;
+                
+                // The amount available for principal reduction is: Total Remittance - Interest
+                let maxPrincipalReduction = scheduleRemittance - interestForMonth;
+
+                // Calculate the standard principal reduction (based on fixed M)
+                const standardPrincipalReduction = M - interestForMonth;
+
+                // If maxPrincipalReduction is negative, something is wrong, break (or if M doesn't cover interest)
+                if (M < interestForMonth && i > 0) { break; } 
+
+                if (startBalance <= maxPrincipalReduction) {
+                    // Final payment month: Pay off the remaining balance
+                    principalPaid = startBalance;
+                    currentBalance = 0;
+                    
+                    // The extra principal is whatever principal was paid beyond the standard principal
+                    extraPrincipalApplied = principalPaid - standardPrincipalReduction;
+                    if (extraPrincipalApplied < 0) extraPrincipalApplied = 0; 
+                    
+                } else {
+                    // Normal payment month
+                    principalPaid = maxPrincipalReduction;
+                    extraPrincipalApplied = extraPayment; 
+                    currentBalance -= principalPaid;
+                }
+                
+                amortizationSchedule.push({
+                    month: monthCount,
+                    startBalance: startBalance,
+                    requiredAmortization: M, // The fixed monthly payment
+                    interestPaid: interestForMonth,
+                    principalPaid: principalPaid, // Total principal reduction
+                    extraPrincipal: extraPrincipalApplied,
+                    endBalance: currentBalance < 0.01 ? 0 : currentBalance
+                });
+
+                if (currentBalance < 0.01) break; 
+            }
+
+            // 5. Update Advanced Payment Summary
+            const isAdvancedScenario = (extraPayment > 0.01);
+            
+            if (isAdvancedScenario && monthCount < N) {
+                const interestSaved = totalInterestStandard - totalInterestPaidNew;
+                const N_new = monthCount;
+
+                // Display the combined monthly remittance immediately
+                updateOutput('totalMonthlyRemittance', PHPFormatter.format(effectiveMonthlyPayment));
+
+                const years = Math.floor(N_new / 12);
+                const months = Math.round(N_new % 12);
+                const durationText = `${years} yrs ${months} mos`;
+
+                updateOutput('newDuration', durationText);
+                updateOutput('interestSaved', PHPFormatter.format(interestSaved));
+                summaryDiv.classList.remove('hidden');
+            } else {
+                summaryDiv.classList.add('hidden');
+            }
+            
+            // 6. Render the generated schedule
+            renderAmortizationSchedule(amortizationSchedule);
+        }
+
+        // Toggle function setup
+        function setupToggle() {
+            const button = document.getElementById('toggleScheduleButton');
+            const content = document.getElementById('scheduleContent');
+            const icon = document.getElementById('toggleIcon');
+            
+            button.addEventListener('click', () => {
+                const isHidden = content.classList.contains('hidden');
+                
+                if (isHidden) {
+                    content.classList.remove('hidden');
+                    // Add scrolling class to the content area
+                    content.classList.add('overflow-y-scroll'); 
+                    icon.classList.add('rotate-180');
+                    // Scroll to the schedule when expanded (for mobile devices)
+                    content.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } else {
+                    content.classList.add('hidden');
+                    content.classList.remove('overflow-y-scroll');
+                    icon.classList.remove('rotate-180');
+                }
+            });
+        }
+        
+        // Initialize calculation and toggle setup on load
+        window.onload = () => {
+            // Set initial radio states
+            document.getElementById('durationYears').checked = true;
+            document.getElementById('rateAnnual').checked = true;
+            document.getElementById('chargePeso').checked = true;
+
+            // Apply initial formatting and calculate
+            document.getElementById('loanAmount').value = InputFormatter.format(cleanInput(document.getElementById('loanAmount').value));
+            document.getElementById('otherCharges').value = InputFormatter.format(cleanInput(document.getElementById('otherCharges').value));
+            document.getElementById('extraPayment').value = InputFormatter.format(cleanInput(document.getElementById('extraPayment').value));
+            
+            // Set up input listeners for comma formatting
+            document.getElementById('loanAmount').addEventListener('input', function() { formatAndCalculate(this); });
+            document.getElementById('otherCharges').addEventListener('input', function() { formatAndCalculate(this); });
+            document.getElementById('extraPayment').addEventListener('input', function() { formatAndCalculate(this); });
+
+            // Set up event listeners for number inputs and radio buttons that only need calculateLoan
+            document.getElementById('interestRate').addEventListener('input', calculateLoan);
+            document.getElementById('duration').addEventListener('input', calculateLoan);
+
+            // Initial setup for the Amortization Schedule toggle
+            setupToggle();
+            
+            updateChargeUnitLabel(); // Initial label update
+            calculateLoan();
+        };
+    </script>
+</body>
+</html>
